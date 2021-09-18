@@ -1,0 +1,63 @@
+#!/usr/bin/python
+
+from __future__ import print_function
+import os
+import socket
+import struct
+import sys
+import zlib
+
+WIILOAD_VERSION_MAJOR = 0
+WIILOAD_VERSION_MINOR = 5
+WIILOAD_PORT          = 4299
+
+
+def get_destination():
+    ip = os.getenv("WIILOAD")
+    assert ip.startswith("tcp:")
+    return ip[4:], WIILOAD_PORT
+
+
+def main():
+    host, port = get_destination()
+    if len(sys.argv) < 2:
+        print("Usage: %s <dol|elf|rpx> <parameters ..>" % sys.argv[0])
+        sys.exit(1)
+
+    filename = sys.argv[1]
+    if not os.path.exists(filename):
+        print("The specified file could not be found.")
+        sys.exit(2)
+
+    len_uncompressed = os.path.getsize(filename)
+    with open(filename) as fh:
+        c_data = zlib.compress(fh.read(), 6)
+
+    chunk_size = 1024*128
+    chunks = [c_data[i:i+chunk_size] for i  in range(0, len(c_data), chunk_size)]
+
+    args = sys.argv[1:]
+    args[0] = os.path.basename(filename)
+    args = "\x00".join(args) + "\x00"
+
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s.connect((host, port))
+
+    s.send("HAXX")
+    s.send(struct.pack("B", WIILOAD_VERSION_MAJOR)) # one byte, unsigned
+    s.send(struct.pack("B", WIILOAD_VERSION_MINOR)) # one byte, unsigned
+    s.send(struct.pack(">H",len(args)))             # bigendian, 2 bytes, unsigned
+    s.send(struct.pack(">L",len(c_data)))           # bigendian, 4 bytes, unsigned
+    s.send(struct.pack(">L",len_uncompressed))      # bigendian, 4 bytes, unsigned
+
+    print(len(chunks),"chunks to send")
+    for piece in chunks:
+        s.send(piece)
+        sys.stdout.write("."); sys.stdout.flush()
+    sys.stdout.write("\n")
+    s.send(args)
+    s.close()
+    print("done")
+
+if __name__ == "__main__":
+    main()

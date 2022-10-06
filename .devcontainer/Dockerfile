@@ -15,6 +15,7 @@ RUN apt-get update \
         binutils \
         zlib1g-dev \
         g++ \
+        lftp \
         python
 RUN wget https://github.com/0CBH0/wiiurpxtool/archive/98935a5daf9a7629130974af3fa0c02bd6397bef.zip -O wiiurpxtool.zip \
     && unzip wiiurpxtool.zip \
